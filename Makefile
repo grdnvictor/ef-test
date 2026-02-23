@@ -8,3 +8,7 @@ up: ## Lance tous les services
 
 down: ## Stoppe tous les services
 	docker compose down
+
+first-start: ## Installe les dépendances et lance les services
+	cd app && npm install
+	$(MAKE) up
