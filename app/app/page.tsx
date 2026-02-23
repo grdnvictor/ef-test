@@ -12,7 +12,7 @@ export default function Home() {
                     Test technique EF
                 </h1>
             </div>
-            <Button size="lg">
+            <Button size="lg" asChild>
                 <Link href="/tasks">Voir mes tâches →</Link>
             </Button>
         </main>

@@ -2,13 +2,13 @@
 services:
   php:
     build:
-      context: ./api
+      context: ./api/api
       target: frankenphp_dev
     volumes:
-      - ./api:/app
+      - ./api/api:/app
       - /app/var
-      - ./api/frankenphp/Caddyfile:/etc/frankenphp/Caddyfile:ro
-      - ./api/frankenphp/conf.d/20-app.dev.ini:/usr/local/etc/php/app.conf.d/20-app.dev.ini:ro
+      - ./api/api/frankenphp/Caddyfile:/etc/frankenphp/Caddyfile:ro
+      - ./api/api/frankenphp/conf.d/20-app.dev.ini:/usr/local/etc/php/app.conf.d/20-app.dev.ini:ro
       # If you develop on Mac or Windows you can remove the vendor/ directory
       #  from the bind-mount for better performance by enabling the next line:
       #- /app/vendor
@@ -22,13 +22,10 @@ services:
       - host.docker.internal:host-gateway
     tty: true
 
-###> doctrine/doctrine-bundle ###
+  ###> doctrine/doctrine-bundle ###
   database:
     ports:
       - target: 5432
         published: 5432
         protocol: tcp
-###< doctrine/doctrine-bundle ###
-
-###> symfony/mercure-bundle ###
-###< symfony/mercure-bundle ###
+  ###< doctrine/doctrine-bundle ###

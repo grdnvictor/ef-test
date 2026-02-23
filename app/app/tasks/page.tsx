@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+const taskFormSchema = z.object({
+    title: z.string().min(3, "Le titre doit contenir au moins 3 caractères"),
+    description: z.string().optional(),
+});
+
+type TaskFormErrors = Partial<Record<keyof z.infer<typeof taskFormSchema>, string>>;
+
 interface Task {
     id: number;
     title: string;
@@ -24,41 +34,53 @@ interface Task {
     isDone: boolean;
 }
 
-const initialTasks: Task[] = [
-    {
-        id: 1,
-        title: "Faire les courses",
-        description: "Acheter du lait",
-        createdAt: "2026-02-20T12:00:00+00:00",
-        isDone: false,
-    },
-    {
-        id: 2,
-        title: "Réviser TypeScript",
-        description: "Revoir les generics et utility types",
-        createdAt: "2026-02-19T09:00:00+00:00",
-        isDone: true,
-    },
-];
-
 export default function TasksPage() {
-    const [tasks, setTasks] = useState<Task[]>(initialTasks);
+    const [tasks, setTasks] = useState<Task[]>([]);
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [errors, setErrors] = useState<TaskFormErrors>({});
+
+    async function fetchTasks() {
+        try {
+            const res = await fetch(`${API_URL}/tasks`);
+            const data = await res.json();
+            setTasks(data.member);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    useEffect(() => {
+        fetchTasks();
+    }, []);
 
     async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
         e.preventDefault();
-        setLoading(true);
+        setErrors({});
 
         const formData = new FormData(e.currentTarget);
-        const title = formData.get("title") as string;
-        const description = formData.get("description") as string;
+        const values = {
+            title: formData.get("title") as string,
+            description: formData.get("description") as string,
+        };
 
+        const result = taskFormSchema.safeParse(values);
+        if (!result.success) {
+            const fieldErrors: TaskFormErrors = {};
+            for (const issue of result.error.issues) {
+                const field = issue.path[0] as keyof TaskFormErrors;
+                fieldErrors[field] = issue.message;
+            }
+            setErrors(fieldErrors);
+            return;
+        }
+
+        setLoading(true);
         try {
-            const res = await fetch("/api/tasks", {
+            const res = await fetch(`${API_URL}/tasks`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ title, description }),
+                headers: { "Content-Type": "application/ld+json" },
+                body: JSON.stringify(result.data),
             });
 
             if (!res.ok) throw new Error("Erreur API");
@@ -66,18 +88,8 @@ export default function TasksPage() {
             const newTask: Task = await res.json();
             setTasks((prev) => [...prev, newTask]);
             setOpen(false);
-        } catch {
-            setTasks((prev) => [
-                ...prev,
-                {
-                    id: Date.now(),
-                    title,
-                    description,
-                    createdAt: new Date().toISOString(),
-                    isDone: false,
-                },
-            ]);
-            setOpen(false);
+        } catch (err) {
+            console.error(err);
         } finally {
             setLoading(false);
         }
@@ -85,12 +97,11 @@ export default function TasksPage() {
 
     async function handleDelete(id: number) {
         try {
-            const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+            const res = await fetch(`${API_URL}/tasks/${id}`, { method: "DELETE" });
             if (!res.ok) throw new Error("Erreur API");
-        } catch {
-            // silently fallback
-        } finally {
             setTasks((prev) => prev.filter((t) => t.id !== id));
+        } catch (err) {
+            console.error(err);
         }
     }
 
@@ -104,7 +115,7 @@ export default function TasksPage() {
                     <h1 className="text-2xl font-bold">Mes tâches</h1>
                 </div>
 
-                <Dialog open={open} onOpenChange={setOpen}>
+                <Dialog open={open} onOpenChange={(v) => { setOpen(v); setErrors({}); }}>
                     <DialogTrigger asChild>
                         <Button>+ Nouvelle tâche</Button>
                     </DialogTrigger>
@@ -115,11 +126,17 @@ export default function TasksPage() {
                         <form onSubmit={handleSubmit} className="grid gap-4 pt-2">
                             <div className="grid gap-2">
                                 <Label htmlFor="title">Titre</Label>
-                                <Input id="title" name="title" required placeholder="Ex: Faire les courses" />
+                                <Input id="title" name="title" placeholder="Ex: Faire les courses" />
+                                {errors.title && (
+                                    <p className="text-sm text-destructive">{errors.title}</p>
+                                )}
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="description">Description</Label>
                                 <Textarea id="description" name="description" placeholder="Détails..." />
+                                {errors.description && (
+                                    <p className="text-sm text-destructive">{errors.description}</p>
+                                )}
                             </div>
                             <Button type="submit" disabled={loading}>
                                 {loading ? "Création..." : "Créer"}
